@@ -1,0 +1,28 @@
+{
+  "name": "Connect-4-Server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/StephenMistele/Air-Quality-Project.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/StephenMistele/Air-Quality-Project/issues"
+  },
+  "homepage": "https://github.com/StephenMistele/Air-Quality-Project#readme",
+  "dependencies": {
+    "express": "^4.17.1",
+    "json": "^11.0.0",
+    "prompt-sync": "^4.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^17.0.31"
+  }
+}

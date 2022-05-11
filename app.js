@@ -23,7 +23,8 @@ app.post('/checkturn', function (req, res) {
     var playerid = req.body.playerid;
     var gameid = req.body.gameid;
     var out = functions.checkTurn(playerid, gameid);
-    console.log(playerid, " asked if ", gameid, out);
+    if (out[0] == -2)
+        functions.deleteGame(gameid);
     res.json([{
             data: out
         }]);
@@ -51,26 +52,27 @@ app.post('/move', function (req, res) {
     var playerid = req.body.playerid;
     var gameid = req.body.gameid;
     var col = req.body.col;
-    var out = "";
+    var out;
     //Game doesn't exist
     if (functions.checkTurn(playerid, gameid) == -2)
-        out = "Game doesn't exist";
+        out = ["Game doesn't exist", 0, []];
     //Not your turn
     else if (!Array.isArray(functions.checkTurn(playerid, gameid)))
-        out = "Not your turn";
+        out = ["Not your turn", 0, []];
     //Your turn
     else {
         out = functions.insert(col, playerid, gameid);
         if (out[0] == "Good insert") {
-            functions.changeTurn(gameid);
+            functions.changeTurn(gameid, false);
             var row = functions.getTop(gameid, col);
             if (functions.checkWin(gameid, out[1], col, row)) {
-                out = "Game won";
-                functions.deleteGame(gameid);
+                out[0] = "Game won";
+                functions.changeTurn(gameid, true);
+                //functions.deleteGame(gameid);
             }
         }
         else
-            out = "Bad insert";
+            out[0] = "Bad insert";
     }
     console.log("move:", out, playerid);
     res.json([{

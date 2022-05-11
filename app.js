@@ -80,4 +80,5 @@ app.post('/move', function (req, res) {
         }]);
 });
 app.listen(port, function () { return console.log("Listening on port ".concat(port)); });
+module.exports = app;
 //# sourceMappingURL=app.js.map

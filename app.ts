@@ -1,13 +1,15 @@
 const express = require('express')
 const bodyParser = require('body-parser');
+const cors = require('cors');
+const functions = require('./functions.js')
 const app = express()
 app.use(bodyParser.json());
+app.use(cors());
 const port = 3000
-const functions = require('./functions.js')
 
 app.get('/healthcheck', (req, res) => {
   res.status(200).json([{
-    status: 'Still Alive'
+    data: 'Still Alive'
   }])
 })
 
@@ -24,6 +26,7 @@ app.post('/checkturn', (req, res) => {
   let playerid: string = req.body.playerid
   let gameid: string = req.body.gameid
   let out: string = functions.checkTurn(playerid, gameid)
+  console.log(playerid, " asked if ", gameid, out)
   res.json([{
     data: out
   }])
@@ -57,8 +60,11 @@ app.post('/move', (req, res) => {
   let col: number = req.body.col
   let out: string = ""
 
+  //Game doesn't exist
+  if (functions.checkTurn(playerid, gameid) == -2)
+    out = "Game doesn't exist";
   //Not your turn
-  if (functions.checkTurn(playerid, gameid) != 1)
+  else if (!Array.isArray(functions.checkTurn(playerid, gameid)))
     out = "Not your turn";
   //Your turn
   else {
@@ -68,12 +74,13 @@ app.post('/move', (req, res) => {
       let row: number = functions.getTop(gameid, col)
       if (functions.checkWin(gameid, out[1], col, row)){
         out = "Game won"
-        //delete entry from table
+        functions.deleteGame(gameid)
       }
     }
     else
       out = "Bad insert"
   }
+  console.log("move:", out, playerid)
   res.json([{
     data: out
   }])

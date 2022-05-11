@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/StephenMistele/Air-Quality-Project#readme",
   "dependencies": {
+    "cors": "^2.8.5",
     "express": "^4.17.1",
     "json": "^11.0.0",
     "prompt-sync": "^4.2.0"

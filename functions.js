@@ -25,7 +25,7 @@ module.exports = {
                 board: newboard,
                 hostid: playerid,
                 guestid: "0",
-                hostturn: true
+                hostturn: false
             };
             games.set(gameid, values);
             gametimes[gameid] = new Date().toLocaleString();
@@ -40,21 +40,27 @@ module.exports = {
         console.log("GAMETIMES*****************************************************", gametimes, "\n");
     },
     checkTurn: function (playerid, gameid) {
-        //if game doesn't exist (you lost) return -1
+        //if game doesn't exist (you lost) return -2
         if (!games.has(gameid))
+            return -2;
+        //only one person in game return -1
+        if (games.get(gameid).guestid == '0')
             return -1;
-        //return 1 for 'your move' 0 for not
+        //return board for 'your move' 0 for not
         if (playerid == games.get(gameid).hostid) {
             //player is host
             if (games.get(gameid).hostturn)
-                return 1;
+                return games.get(gameid).board;
+            console.log("hostturn:", games.get(gameid).hostturn, "playerid: ", playerid, "playerid should be", games.get(gameid).guestid);
             return 0;
         }
         else {
             //player is guest
-            if (games.get(gameid).hostturn)
+            if (games.get(gameid).hostturn) {
+                console.log("hostturn:", games.get(gameid).hostturn, "playerid: ", playerid, "playerid should be", games.get(gameid).hostid);
                 return 0;
-            return 1;
+            }
+            return games.get(gameid).board;
         }
     },
     generateGameID: function () {
@@ -105,24 +111,32 @@ module.exports = {
                 }
             }
         }
-        console.log(games.get(gameid).board);
         if (successful)
-            return ["Good insert", piece];
+            return ["Good insert", piece, games.get(gameid).board];
         else
             return "Bad insert";
     },
     //****** INTERNAL FUNCTIONS ******
     changeTurn: function (gameid) {
+        console.log("changing turn ", games.get(gameid));
         if (games.get(gameid).hostturn == true)
             games.get(gameid).hostturn = false;
         else
             games.get(gameid).hostturn = true;
+        console.log("changing turn ", games.get(gameid));
     },
     getTop: function (gameid, col) {
         for (var i = 0; i < 5; i++)
             if (games.get(gameid).board[i][col] != 0)
                 return i;
         return 5;
+    },
+    deleteGame: function (gameid) {
+        var hostid = games.get(gameid).hostid;
+        var guestid = games.get(gameid).guestid;
+        games.delete(gameid);
+        players.delete(hostid);
+        players.delete(guestid);
     },
     checkWin: function (gameid, player, col, row) {
         //check if horizontal win on row of most recent piece played

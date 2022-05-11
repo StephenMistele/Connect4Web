@@ -1,6 +1,9 @@
 var games: Map<string, gamevals> = new Map()
 var gametimes: Map<string, string> = new Map()
 var players: Map<string, string> = new Map()
+//check if player left
+//matchmaking
+//wipe old games
 
 type gamevals = {
     board: number[][];
@@ -34,7 +37,7 @@ module.exports = {
                 board: newboard,
                 hostid: playerid,
                 guestid: "0",
-                hostturn: true
+                hostturn: false
             }
             games.set(gameid, values)
             gametimes[gameid] = new Date().toLocaleString()
@@ -51,22 +54,30 @@ module.exports = {
     },
 
     checkTurn: function (playerid: string, gameid: string) {
-        //if game doesn't exist (you lost) return -1
+        //if game doesn't exist (you lost) return -2
         if (!games.has(gameid))
+            return -2
+        
+        //only one person in game return -1
+        if (games.get(gameid).guestid == '0')
             return -1
 
-        //return 1 for 'your move' 0 for not
+        //return board for 'your move' 0 for not
         if (playerid == games.get(gameid).hostid) {
             //player is host
             if (games.get(gameid).hostturn)
-                return 1
+                return games.get(gameid).board
+            console.log("hostturn:", games.get(gameid).hostturn, "playerid: ", playerid, "playerid should be", games.get(gameid).guestid)
             return 0
         }
         else {
             //player is guest
-            if (games.get(gameid).hostturn)
+            if (games.get(gameid).hostturn){
+                console.log("hostturn:", games.get(gameid).hostturn, "playerid: ", playerid, "playerid should be", games.get(gameid).hostid)
                 return 0
-            return 1
+
+            }
+            return games.get(gameid).board
         }
     },
 
@@ -120,19 +131,20 @@ module.exports = {
                 }
             }
         }
-        console.log(games.get(gameid).board)
         if (successful)
-            return ["Good insert", piece];
+            return ["Good insert", piece, games.get(gameid).board];
         else
             return "Bad insert"
     },
 
     //****** INTERNAL FUNCTIONS ******
     changeTurn: function (gameid: string) {
+        console.log("changing turn ", games.get(gameid))
         if (games.get(gameid).hostturn == true)
             games.get(gameid).hostturn = false;
         else
-            games.get(gameid).hostturn = true
+            games.get(gameid).hostturn = true;
+        console.log("changing turn ", games.get(gameid))
     },
 
     getTop: function (gameid: string, col: number) {
@@ -140,6 +152,14 @@ module.exports = {
             if (games.get(gameid).board[i][col] != 0)
                 return i
         return 5
+    },
+
+    deleteGame: function(gameid: string){
+        let hostid:string = games.get(gameid).hostid;
+        let guestid:string = games.get(gameid).guestid;
+        games.delete(gameid);
+        players.delete(hostid);
+        players.delete(guestid);
     },
 
     checkWin: function (gameid: string, player: number, col: number, row: number) {

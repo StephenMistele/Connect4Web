@@ -19,6 +19,13 @@ app.post('/createboard', function (req, res) {
             data: out
         }]);
 });
+app.post('/queue', function (req, res) {
+    var playerid = req.body.playerid;
+    var out = functions.queue(playerid);
+    res.json([{
+            data: out
+        }]);
+});
 app.post('/checkturn', function (req, res) {
     var playerid = req.body.playerid;
     var gameid = req.body.gameid;
@@ -37,15 +44,26 @@ app.post('/debug', function (req, res) {
         }]);
 });
 app.post('/generategameid', function (req, res) {
-    var out = functions.generateGameID();
+    var playerid = req.body.playerid;
+    var out = functions.generateGameID(playerid);
+    console.log(out, "gameid");
     res.json([{
             data: out
         }]);
 });
 app.post('/generateplayerid', function (req, res) {
     var out = functions.generatePlayerID();
+    console.log(out, "playerid");
     res.json([{
             data: out
+        }]);
+});
+app.post('/quit', function (req, res) {
+    var playerid = req.body.playerid;
+    var gameid = req.body.gameid;
+    functions.deleteGame(gameid);
+    res.json([{
+            data: "quit successful"
         }]);
 });
 app.post('/move', function (req, res) {
@@ -63,11 +81,11 @@ app.post('/move', function (req, res) {
     else {
         out = functions.insert(col, playerid, gameid);
         if (out[0] == "Good insert") {
-            functions.changeTurn(gameid, false);
+            functions.modifyBoardState(gameid, "0", true);
             var row = functions.getTop(gameid, col);
             if (functions.checkWin(gameid, out[1], col, row)) {
                 out[0] = "Game won";
-                functions.changeTurn(gameid, true);
+                functions.modifyBoardState(gameid, playerid, true);
                 //functions.deleteGame(gameid);
             }
         }

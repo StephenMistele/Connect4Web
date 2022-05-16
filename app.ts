@@ -90,7 +90,7 @@ app.post('/move', (req, res) => {
   if (functions.checkTurn(playerid, gameid) == -2)
     out = ["Game doesn't exist", 0, []];
   //Not your turn
-  else if (!Array.isArray(functions.checkTurn(playerid, gameid)))
+  else if (functions.checkTurn(playerid, gameid)[0] != 1)
     out = ["Not your turn", 0, []];
   //Your turn
   else {

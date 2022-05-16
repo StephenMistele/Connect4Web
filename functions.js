@@ -82,6 +82,7 @@ module.exports = {
             console.log(item);
         console.log("GAMES*****************************************************", games, "\n");
         console.log("PLAYERS*****************************************************", players, "\n");
+        return [games, players];
     },
     checkTurn: function (playerid, gameid) {
         //if game doesn't exist, return -3

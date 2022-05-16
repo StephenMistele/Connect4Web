@@ -18,8 +18,14 @@ class Queue {
 var games: Map<string, gamevals> = new Map();
 var players: Map<string, playervals> = new Map();
 var playerqueue: Queue = new Queue();
-//matchmaking
+//MUST HAVES:
 //implement expirations on old games/players
+//why doesn't hosting work
+
+//NICE TO HAVES
+//matchmaking
+//implement single-player mode
+//user accounts
 
 type gamevals = {
     board: number[][];

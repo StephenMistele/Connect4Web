@@ -15,6 +15,7 @@ app.post('/createboard', function (req, res) {
     var playerid = req.body.playerid;
     var gameid = req.body.gameid;
     var out = functions.createBoard(playerid, gameid);
+    console.log(out, "createboard");
     res.json([{
             data: out
         }]);
@@ -30,6 +31,7 @@ app.post('/checkturn', function (req, res) {
     var playerid = req.body.playerid;
     var gameid = req.body.gameid;
     var out = functions.checkTurn(playerid, gameid);
+    console.log(out, "checkturn");
     if (out[0] == -2)
         functions.deleteGame(gameid);
     res.json([{
@@ -62,6 +64,7 @@ app.post('/quit', function (req, res) {
     var playerid = req.body.playerid;
     var gameid = req.body.gameid;
     functions.deleteGame(gameid);
+    console.log("deleted", gameid);
     res.json([{
             data: "quit successful"
         }]);

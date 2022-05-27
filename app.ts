@@ -45,8 +45,7 @@ app.post('/checkturn', (req, res) => {
 })
 
 app.post('/debug', (req, res) => {
-  let gameid: string = req.body.gameid;
-  let out: string = functions.debug(gameid);
+  let out: string = functions.debug();
   res.json([{
     data: out
   }])

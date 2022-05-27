@@ -39,8 +39,7 @@ app.post('/checkturn', function (req, res) {
         }]);
 });
 app.post('/debug', function (req, res) {
-    var gameid = req.body.gameid;
-    var out = functions.debug(gameid);
+    var out = functions.debug();
     res.json([{
             data: out
         }]);

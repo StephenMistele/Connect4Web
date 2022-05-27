@@ -77,7 +77,7 @@ module.exports = {
         }
         return "meep";
     },
-    debug: function (gameid) {
+    debug: function () {
         for (var item in games)
             console.log(item);
         console.log("GAMES*****************************************************", games, "\n");
@@ -118,7 +118,6 @@ module.exports = {
             if (counter > 999999 * 2)
                 return -1;
         }
-        console.log("HEHEHEHEHEH", id.toString(), playerid);
         players.get(playerid).gameid = id;
         return id.toString();
     },

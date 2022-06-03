@@ -1,54 +1,59 @@
-var __spreadArray = (this && this.__spreadArray) || function (to, from, pack) {
-    if (pack || arguments.length === 2) for (var i = 0, l = from.length, ar; i < l; i++) {
-        if (ar || !(i in from)) {
-            if (!ar) ar = Array.prototype.slice.call(from, 0, i);
-            ar[i] = from[i];
-        }
-    }
-    return to.concat(ar || Array.prototype.slice.call(from));
-};
-var Queue = /** @class */ (function () {
-    function Queue() {
-        var params = [];
-        for (var _i = 0; _i < arguments.length; _i++) {
-            params[_i] = arguments[_i];
-        }
-        console.log(params);
-        this.items = __spreadArray([], params, true);
-    }
-    Queue.prototype.enqueue = function (item) {
-        this.items.push(item);
-    };
-    Queue.prototype.dequeue = function () {
-        return this.items.shift();
-    };
-    Queue.prototype.len = function () {
-        return this.items.length;
-    };
-    return Queue;
-}());
+//High-Priority TODO's:
+//implement expirations on old games/players
+//Globals
 var games = new Map();
 var players = new Map();
-var playerqueue = new Queue();
 module.exports = {
     //****** EXTERNAL FUNCTIONS ******
-    createBoard: function (playerid, gameid) {
-        //if player has another game associated, delete if over, over if running
+    //Returns unique gameid
+    generateGameID: function (playerid) {
+        var counter = 0;
+        var id = (Math.floor(Math.random() * 8999) + 1000).toString();
+        while (games.has(id)) {
+            id = (Math.floor(Math.random() * 8999) + 1000).toString();
+            counter++;
+            //if total concurrent games approaching 10000, fail
+            if (counter > 9999 * 2)
+                return -1;
+        }
+        players.get(playerid).gameid = id;
+        return id.toString();
+    },
+    //Returns unique playerid
+    generatePlayerID: function () {
+        var counter = 0;
+        var id = (Math.floor(Math.random() * 899999) + 100000).toString();
+        while (players.has(id)) {
+            id = (Math.floor(Math.random() * 899999) + 100000).toString();
+            counter++;
+            if (counter > 999999 * 2)
+                return -1;
+        }
+        var values = {
+            lastused: new Date().toLocaleString(),
+            gameid: "0"
+        };
+        players.set(id.toString(), values);
+        return id.toString();
+    },
+    //handles a player joining a game room. Creates new room if gameid not yet present.
+    //joins existing game if gameid already present with one player
+    joinGame: function (playerid, gameid) {
         //if game room already exists
         if (games.has(gameid)) {
-            console.log(games.get(gameid));
-            //if game room only has 1 player
+            // console.log(games.get(gameid))
+            //if game room only has 1 player, join successfully
             if (games.get(gameid).guestid == "0") {
                 games.get(gameid).guestid = playerid;
                 return "game joined";
             }
-            //if game room has 2 players already
+            //if game room has 2 players already, fail
             else if (games.get(gameid).guestid == playerid || games.get(gameid).hostid == playerid)
                 return "already in game";
             else
                 return "game full";
         }
-        //if game room doesn't exist
+        //if game room doesn't exist, create new board
         else {
             var newboard = [];
             for (var x = 0; x < 6; x++) {
@@ -69,21 +74,7 @@ module.exports = {
             return "new game created";
         }
     },
-    queue: function (playerid) {
-        playerqueue.enqueue(playerid);
-        if (playerqueue.len() > 1) {
-            var player1 = playerqueue.dequeue();
-            var player2 = playerqueue.dequeue();
-        }
-        return "meep";
-    },
-    debug: function () {
-        for (var item in games)
-            console.log(item);
-        console.log("GAMES*****************************************************", games, "\n");
-        console.log("PLAYERS*****************************************************", players, "\n");
-        return [games, players];
-    },
+    //Returns information on gamestate relevent to given player/game. Queried repeatedly by players
     checkTurn: function (playerid, gameid) {
         //if game doesn't exist, return -3
         if (!games.has(gameid))
@@ -94,7 +85,7 @@ module.exports = {
         //only one person in game return -1
         if (games.get(gameid).guestid == '0')
             return [-1, 0];
-        //return [1, board] for 'your move' 0 for not
+        //return [1, board] for 'your move', or 0 for not
         if (playerid == games.get(gameid).hostid) {
             //player is host
             if (games.get(gameid).hostturn)
@@ -103,41 +94,14 @@ module.exports = {
         }
         else {
             //player is guest
-            if (games.get(gameid).hostturn) {
+            if (games.get(gameid).hostturn)
                 return [0, 0];
-            }
             return [1, games.get(gameid).board];
         }
     },
-    generateGameID: function (playerid) {
-        var counter = 0;
-        var id = (Math.floor(Math.random() * 899999) + 100000).toString();
-        while (games.has(id)) {
-            id = (Math.floor(Math.random() * 899999) + 100000).toString();
-            counter++;
-            if (counter > 999999 * 2)
-                return -1;
-        }
-        players.get(playerid).gameid = id;
-        return id.toString();
-    },
-    generatePlayerID: function () {
-        var counter = 0;
-        var id = (Math.floor(Math.random() * 999999) + 100000).toString();
-        while (players.has(id)) {
-            id = (Math.floor(Math.random() * 999999) + 100000).toString();
-            counter++;
-            if (counter > 999999 * 2)
-                return -1;
-        }
-        var values = {
-            lastused: new Date().toLocaleString(),
-            gameid: "0"
-        };
-        players.set(id.toString(), values);
-        return id.toString();
-    },
+    //Attempts to insert a piece to given board/col by given player
     insert: function (col, playerid, gameid) {
+        //Assign 'piece' info to relevant player
         var piece = -1;
         if (games.get(gameid).hostid == playerid)
             piece = 1;
@@ -166,9 +130,18 @@ module.exports = {
         else
             return ["Bad insert"];
     },
-    //****** INTERNAL FUNCTIONS ******
+    //Prints out info on board state to console and Json. Triggered by hitting 'debug' API endpoint
+    debug: function () {
+        for (var item in games)
+            console.log(item);
+        console.log("GAMES*****************************************************", games, "\n");
+        console.log("PLAYERS*****************************************************", players, "\n");
+        return [games, players];
+    },
+    //****** HELPER FUNCTIONS ******
+    //Changes turn or ends game
     modifyBoardState: function (gameid, playerid, winner) {
-        //Flag game as over
+        //Flag game as over if playerid is passed in
         if (playerid != "0") {
             //Set winner to playerid passed in because they won
             if (winner)
@@ -182,29 +155,28 @@ module.exports = {
             }
             return;
         }
-        //Rotate hostturn bool to enable turn change
-        console.log("changing turn ", games.get(gameid));
+        //Else, rotate hostturn bool to enable turn change
         if (games.get(gameid).hostturn == true)
             games.get(gameid).hostturn = false;
         else
             games.get(gameid).hostturn = true;
-        console.log("changing turn ", games.get(gameid));
     },
+    //Returns location of highest played piece 
     getTop: function (gameid, col) {
         for (var i = 0; i < 5; i++)
             if (games.get(gameid).board[i][col] != 0)
                 return i;
         return 5;
     },
+    //Takes a game out of memory. Gone. Forever.
     deleteGame: function (gameid) {
         games.delete(gameid);
-        console.log("\n\n\n\n\n Just deleted", gameid);
-        console.log(games);
         // let hostid: string = games.get(gameid).hostid;
         // let guestid: string = games.get(gameid).guestid;
         // players.delete(hostid);
         // players.delete(guestid);
     },
+    //Given a board and the most recent piece played, checks if a win exists around that piece.
     checkWin: function (gameid, player, col, row) {
         //check if horizontal win on row of most recent piece played
         var count = 0;
@@ -232,7 +204,7 @@ module.exports = {
         count = 0;
         var tempcol = col;
         var temprow = row;
-        //move cursor to top left most value on relevent diagonal
+        //start by moving cursor to top left most value on relevent diagonal
         while (temprow > 0 && tempcol > 0) {
             temprow -= 1;
             tempcol -= 1;
@@ -253,7 +225,7 @@ module.exports = {
         count = 0;
         tempcol = col;
         temprow = row;
-        //move cursor to top right most value on relevent diagonal
+        //start by moving cursor to top right most value on relevent diagonal
         while (temprow > 0 && tempcol < 6) {
             temprow -= 1;
             tempcol += 1;
@@ -273,4 +245,30 @@ module.exports = {
         return false;
     }
 };
+//Below code can be used to implement matchmaking. For now, leave commented
+// class Queue {
+//     items: string[];
+//     constructor(...params: any[]) {
+//         // console.log(params);
+//         this.items = [...params];
+//     }
+//     enqueue(item: any) {
+//         this.items.push(item);
+//     }
+//     dequeue() {
+//         return this.items.shift();
+//     }
+//     len() {
+//         return this.items.length;
+//     }
+// }
+// var playerqueue: Queue = new Queue();
+// queue: function (playerid: string) {
+//     playerqueue.enqueue(playerid);
+//     if (playerqueue.len() > 1){
+//         let player1:string = playerqueue.dequeue();
+//         let player2:string = playerqueue.dequeue();
+//     }
+//     return "meep"
+// },
 //# sourceMappingURL=functions.js.map

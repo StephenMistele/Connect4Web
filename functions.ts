@@ -1,32 +1,12 @@
-class Queue {
-    items: string[];
-
-    constructor(...params: any[]) {
-        console.log(params);
-        this.items = [...params];
-    }
-    enqueue(item: any) {
-        this.items.push(item);
-    }
-    dequeue() {
-        return this.items.shift();
-    }
-    len() {
-        return this.items.length;
-    }
-}
-var games: Map<string, gamevals> = new Map();
-var players: Map<string, playervals> = new Map();
-var playerqueue: Queue = new Queue();
-//MUST HAVES:
+//High-Priority TODO's:
 //implement expirations on old games/players
-//why doesn't hosting work
 
-//NICE TO HAVES
+//NICE TO HAVES:
 //matchmaking
 //implement single-player mode
 //user accounts
 
+//Types
 type gamevals = {
     board: number[][];
     hostid: string;
@@ -41,27 +21,65 @@ type playervals = {
     gameid: string;
 };
 
+//Globals
+var games: Map<string, gamevals> = new Map();
+var players: Map<string, playervals> = new Map();
+
 module.exports = {
 
     //****** EXTERNAL FUNCTIONS ******
-    createBoard: function (playerid: string, gameid: string) {
-        //if player has another game associated, delete if over, over if running
 
+    //Returns unique gameid
+    generateGameID: function (playerid: string) {
+        let counter: number = 0;
+        let id: string = (Math.floor(Math.random() * 8999) + 1000).toString();
+        while (games.has(id)) {
+            id = (Math.floor(Math.random() * 8999) + 1000).toString();
+            counter++;
+            //if total concurrent games approaching 10000, fail
+            if (counter > 9999 * 2)
+                return -1
+        }
+        players.get(playerid).gameid = id;
+        return id.toString();
+    },
+
+    //Returns unique playerid
+    generatePlayerID: function () {
+        let counter: number = 0;
+        let id: string = (Math.floor(Math.random() * 899999) + 100000).toString();
+        while (players.has(id)) {
+            id = (Math.floor(Math.random() * 899999) + 100000).toString();
+            counter++;
+            if (counter > 999999 * 2)
+                return -1
+        }
+        let values: playervals = {
+            lastused: new Date().toLocaleString(),
+            gameid: "0"
+        }
+        players.set(id.toString(), values);
+        return id.toString();
+    },
+
+    //handles a player joining a game room. Creates new room if gameid not yet present.
+    //joins existing game if gameid already present with one player
+    joinGame: function (playerid: string, gameid: string) {
         //if game room already exists
         if (games.has(gameid)) {
-            console.log(games.get(gameid))
-            //if game room only has 1 player
+            // console.log(games.get(gameid))
+            //if game room only has 1 player, join successfully
             if (games.get(gameid).guestid == "0") {
                 games.get(gameid).guestid = playerid
                 return "game joined"
             }
-            //if game room has 2 players already
+            //if game room has 2 players already, fail
             else if (games.get(gameid).guestid == playerid || games.get(gameid).hostid == playerid)
                 return "already in game"
             else
                 return "game full"
         }
-        //if game room doesn't exist
+        //if game room doesn't exist, create new board
         else {
             let newboard: number[][] = [];
             for (let x: number = 0; x < 6; x++) {
@@ -83,24 +101,7 @@ module.exports = {
         }
     },
 
-    queue: function (playerid: string) {
-        playerqueue.enqueue(playerid);
-        if (playerqueue.len() > 1){
-            let player1:string = playerqueue.dequeue();
-            let player2:string = playerqueue.dequeue();
-
-        }
-        return "meep"
-    },
-
-    debug: function () {
-        for (let item in games)
-            console.log(item)
-        console.log("GAMES*****************************************************", games, "\n")
-        console.log("PLAYERS*****************************************************", players, "\n")
-        return [games, players]
-    },
-
+    //Returns information on gamestate relevent to given player/game. Queried repeatedly by players
     checkTurn: function (playerid: string, gameid: string) {
         //if game doesn't exist, return -3
         if (!games.has(gameid))
@@ -114,7 +115,7 @@ module.exports = {
         if (games.get(gameid).guestid == '0')
             return [-1, 0]
 
-        //return [1, board] for 'your move' 0 for not
+        //return [1, board] for 'your move', or 0 for not
         if (playerid == games.get(gameid).hostid) {
             //player is host
             if (games.get(gameid).hostturn)
@@ -123,45 +124,16 @@ module.exports = {
         }
         else {
             //player is guest
-            if (games.get(gameid).hostturn) {
+            if (games.get(gameid).hostturn)
                 return [0, 0]
-            }
             return [1, games.get(gameid).board]
         }
     },
 
-    generateGameID: function (playerid: string) {
-        let counter: number = 0;
-        let id: string = (Math.floor(Math.random() * 899999) + 100000).toString();
-        while (games.has(id)) {
-            id = (Math.floor(Math.random() * 899999) + 100000).toString();
-            counter++;
-            if (counter > 999999 * 2)
-                return -1
-        }
-        players.get(playerid).gameid = id;
-        return id.toString();
-    },
-
-    generatePlayerID: function () {
-        let counter: number = 0;
-        let id: string = (Math.floor(Math.random() * 999999) + 100000).toString();
-        while (players.has(id)) {
-            id = (Math.floor(Math.random() * 999999) + 100000).toString();
-            counter++;
-            if (counter > 999999 * 2)
-                return -1
-        }
-        let values: playervals = {
-            lastused: new Date().toLocaleString(),
-            gameid: "0"
-        }
-        players.set(id.toString(), values);
-        return id.toString();
-    },
-
+    //Attempts to insert a piece to given board/col by given player
     insert: function (col: number, playerid: string, gameid: string) {
-        let piece = -1;
+        //Assign 'piece' info to relevant player
+        let piece: number = -1;
         if (games.get(gameid).hostid == playerid)
             piece = 1;
         else
@@ -190,9 +162,20 @@ module.exports = {
             return ["Bad insert"]
     },
 
-    //****** INTERNAL FUNCTIONS ******
+    //Prints out info on board state to console and Json. Triggered by hitting 'debug' API endpoint
+    debug: function () {
+        for (let item in games)
+            console.log(item)
+        console.log("GAMES*****************************************************", games, "\n")
+        console.log("PLAYERS*****************************************************", players, "\n")
+        return [games, players]
+    },
+
+    //****** HELPER FUNCTIONS ******
+
+    //Changes turn or ends game
     modifyBoardState: function (gameid: string, playerid: string, winner: boolean) {
-        //Flag game as over
+        //Flag game as over if playerid is passed in
         if (playerid != "0") {
             //Set winner to playerid passed in because they won
             if (winner)
@@ -206,15 +189,14 @@ module.exports = {
             }
             return
         }
-        //Rotate hostturn bool to enable turn change
-        console.log("changing turn ", games.get(gameid))
+        //Else, rotate hostturn bool to enable turn change
         if (games.get(gameid).hostturn == true)
             games.get(gameid).hostturn = false;
         else
             games.get(gameid).hostturn = true;
-        console.log("changing turn ", games.get(gameid))
     },
 
+    //Returns location of highest played piece 
     getTop: function (gameid: string, col: number) {
         for (let i: number = 0; i < 5; i++)
             if (games.get(gameid).board[i][col] != 0)
@@ -222,16 +204,16 @@ module.exports = {
         return 5
     },
 
+    //Takes a game out of memory. Gone. Forever.
     deleteGame: function (gameid: string) {
         games.delete(gameid);
-        console.log("\n\n\n\n\n Just deleted", gameid)
-        console.log(games)
         // let hostid: string = games.get(gameid).hostid;
         // let guestid: string = games.get(gameid).guestid;
         // players.delete(hostid);
         // players.delete(guestid);
     },
 
+    //Given a board and the most recent piece played, checks if a win exists around that piece.
     checkWin: function (gameid: string, player: number, col: number, row: number) {
         //check if horizontal win on row of most recent piece played
         let count: number = 0;
@@ -260,7 +242,7 @@ module.exports = {
         count = 0
         let tempcol: number = col;
         let temprow: number = row
-        //move cursor to top left most value on relevent diagonal
+        //start by moving cursor to top left most value on relevent diagonal
         while (temprow > 0 && tempcol > 0) {
             temprow -= 1;
             tempcol -= 1;
@@ -282,7 +264,7 @@ module.exports = {
         count = 0
         tempcol = col;
         temprow = row
-        //move cursor to top right most value on relevent diagonal
+        //start by moving cursor to top right most value on relevent diagonal
         while (temprow > 0 && tempcol < 6) {
             temprow -= 1;
             tempcol += 1;
@@ -302,3 +284,32 @@ module.exports = {
         return false
     }
 }
+
+//Below code can be used to implement matchmaking. For now, leave commented
+
+// class Queue {
+//     items: string[];
+//     constructor(...params: any[]) {
+//         // console.log(params);
+//         this.items = [...params];
+//     }
+//     enqueue(item: any) {
+//         this.items.push(item);
+//     }
+//     dequeue() {
+//         return this.items.shift();
+//     }
+//     len() {
+//         return this.items.length;
+//     }
+// }
+// var playerqueue: Queue = new Queue();
+// queue: function (playerid: string) {
+//     playerqueue.enqueue(playerid);
+//     if (playerqueue.len() > 1){
+//         let player1:string = playerqueue.dequeue();
+//         let player2:string = playerqueue.dequeue();
+
+//     }
+//     return "meep"
+// },

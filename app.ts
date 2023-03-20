@@ -1,11 +1,13 @@
 const express = require('express')
 const bodyParser = require('body-parser');
 const cors = require('cors');
+const md5 = require("md5");
 const functions = require('./functions.js');
 const app = express()
 const port: number = 3000;
 app.use(bodyParser.json());
 app.use(cors());
+expireLoop();
 
 //Lets players generate unique gameid
 app.post('/generategameid', (req, res) => {
@@ -42,8 +44,6 @@ app.post('/checkturn', (req, res) => {
   let playerid: string = req.body.playerid;
   let gameid: string = req.body.gameid;
   let out: number[] = functions.checkTurn(playerid, gameid);
-  // console.log(out, "checkturn")
-
   if (out[0] == -2)
     functions.deleteGame(gameid);
   res.json([{
@@ -68,18 +68,19 @@ app.post('/move', (req, res) => {
   else {
     out = functions.insert(col, playerid, gameid);
     if (out[0] == "Good insert") {
-      functions.modifyBoardState(gameid, "0", true);
+      functions.changeTurn(gameid);
       let row: number = functions.getTop(gameid, col);
-      if (functions.checkWin(gameid, out[1], col, row)){
+      if (functions.checkWin(gameid, out[1], col, row)) {
         out[0] = "Game won";
-        functions.modifyBoardState(gameid, playerid, true)
-        //functions.deleteGame(gameid);
+        functions.updatePlayerScore(playerid, "", false, 1);
+        let otherplayerid = functions.getOtherPlayer(gameid, playerid);
+        functions.updatePlayerScore(otherplayerid, "", false, 0);
+        functions.endGame(gameid, playerid)
       }
     }
     else
       out[0] = "Bad insert";
   }
-  // console.log("move:", out, playerid);
   res.json([{
     data: out
   }])
@@ -88,14 +89,21 @@ app.post('/move', (req, res) => {
 //Ends game for given player
 app.post('/quit', (req, res) => {
   let gameid: string = req.body.gameid;
+  let playerid: string = req.body.playerid;
+  let intentional: number = req.body.col
+  if (intentional) {
+    functions.updatePlayerScore(playerid, "", false, 0);
+    let otherplayerid = functions.getOtherPlayer(gameid, playerid);
+    functions.updatePlayerScore(otherplayerid, "", false, 1);
+  }
   functions.deleteGame(gameid);
   res.json([{
     data: "quit successful"
   }])
 })
 
-//Allows logging and returning of all game and player data (nothing sensitive). Not essential for operation
-app.post('/debug', (req, res) => {
+//Allows logging and returning current game and player data (nothing sensitive). Not essential for operation
+app.get('/debug', (req, res) => {
   let out: string = functions.debug();
   res.json([{
     data: out
@@ -109,14 +117,86 @@ app.get('/healthcheck', (req, res) => {
   }])
 })
 
-//Can be used for matchmaking in future
-// app.post('/queue', (req, res) => {
-//   let playerid: string = req.body.playerid;
-//   let out: string = functions.queue(playerid);
-//   res.json([{
-//     data: out
-//   }])
-// })
+//Submits request for matchmaking
+app.post('/matchmake', (req, res) => {
+  let playerid: string = req.body.playerid;
+  let gameid: string = functions.generateGameID(playerid);
+  let otherplayerdata: string[] = functions.matchmake(playerid, gameid);
+  let startgame = otherplayerdata[0];
+  let out: string[] = [];
+  if (startgame == "0") {
+    let concurrentPlayerCount = otherplayerdata[1];
+    let message = functions.joinGame(playerid, gameid);
+    out = [startgame, message, gameid, concurrentPlayerCount];
+  }
+  else {
+    let newgameid = otherplayerdata[1];
+    functions.deleteGame(gameid)
+    let message = functions.joinGame(playerid, newgameid);
+    out = [startgame, message, newgameid];
+  }
+  res.json([{
+    data: out
+  }])
+})
+
+//Removes a player from the matchmaking queue
+app.post('/dequeue', (req, res) => {
+  let playerid: string = req.body.playerid;
+  let gameid: string = req.body.gameid;
+  let out: string = functions.dequeue(playerid, gameid);
+  res.json([{
+    data: out
+  }])
+})
+
+//Pings are used to determine if players are still using the site
+app.post('/ping', (req, res) => {
+  let playerid: string = req.body.playerid;
+  let out: string = functions.registerPing(playerid);
+  res.json([{
+    data: out
+  }])
+})
+
+//Inserts new player data into the mongo db
+app.post('/signup', async (req, res) => {
+  let username: string = req.body.playerid;
+  let password: string = req.body.gameid;
+  let hash = md5(password);
+  let playerid = functions.generatePlayerID();
+  let success: string = await functions.signUpUser(username, hash, playerid);
+  let out: string[] = [success, playerid];
+  res.json([{
+    data: out
+  }])
+})
+
+//Inserts new player data into the mongo db
+app.post('/login', async (req, res) => {
+  let username: string = req.body.playerid;
+  let password: string = req.body.gameid;
+  let hash = md5(password);
+  let playerid = functions.generatePlayerID();
+  let out: JSON = await functions.loginUser(username, hash, playerid);
+  console.log("login info", out);
+  res.json([{
+    data: out
+  }])
+})
+
+//Runs every 10s to check for unresponsive players
+async function expireLoop() {
+  while (true) {
+    //Wait 10s
+    await new Promise(resolve => setTimeout(resolve, 10000));
+    let expiredPlayersInGames: changeplayerscorevals[] = functions.expirePlayers();
+    for (let i: number = 0; i < expiredPlayersInGames.length; i++) {
+      functions.updatePlayerScore(expiredPlayersInGames[i].playerid, expiredPlayersInGames[i].username, true, 0);
+      functions.updatePlayerScore(expiredPlayersInGames[i].otherplayerid, expiredPlayersInGames[i].otherplayerusername, true, 1);
+    }
+  }
+}
 
 app.listen(port, () => console.log(`Listening on port ${port}`));
 module.exports = app;

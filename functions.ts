@@ -1,10 +1,10 @@
-//High-Priority TODO's:
-//implement expirations on old games/players
-
 //NICE TO HAVES:
-//matchmaking
-//implement single-player mode
-//user accounts
+//web sockets or hooks
+//responsive
+
+const { MongoClient, ServerApiVersion } = require('mongodb');
+const dotenv = require('dotenv');
+dotenv.config();
 
 //Types
 type gamevals = {
@@ -13,21 +13,205 @@ type gamevals = {
     guestid: string;
     hostturn: boolean;
     winner: string;
-    lastused: string;
 };
 
 type playervals = {
-    lastused: string;
+    pinged: boolean;
     gameid: string;
+    hasaccount: boolean;
+    username: string;
+};
+
+type changeplayerscorevals = {
+    playerid: string;
+    username: string;
+    otherplayerid: string;
+    otherplayerusername: string;
 };
 
 //Globals
 var games: Map<string, gamevals> = new Map();
 var players: Map<string, playervals> = new Map();
+var playerqueue = [];
+const mongoPassword = encodeURIComponent(process.env.MONGO_PASSWORD);
+const uri: string = `mongodb+srv://serveraccess:${mongoPassword}@connect4instance.zux23.mongodb.net/?retryWrites=true&w=majority`;
+var dbo;
+MongoClient.connect(uri, async function (err, db) {
+    if (err) {
+        console.log("error connecting to db");
+    }
+    dbo = db.db("playerdatadb");
+});
 
 module.exports = {
 
-    //****** EXTERNAL FUNCTIONS ******
+    getOtherPlayer(gameid: string, playerid: string) {
+        console.log(games.get(gameid), games, gameid)
+        let otherplayerid: string;
+        if (games.get(gameid).guestid == playerid)
+            otherplayerid = games.get(gameid).hostid;
+        else
+            otherplayerid = games.get(gameid).guestid;
+        return otherplayerid;
+    },
+
+    //Updates an existing user's score
+    updatePlayerScore: async function (playerid: string, uname: string, deleted: boolean, incrementwon: number) {
+        let username: string;
+        if (deleted)
+            username = uname;
+        else {
+            if (!players.has(playerid)) {
+                console.log("can't find player to update score", playerid)
+                return;
+            }
+            if (!players.get(playerid).hasaccount) {
+                console.log("Player doesn't have account to update score", playerid)
+                return;
+            }
+            username = players.get(playerid).username;
+        }
+        new Promise(async function (resolve, reject) {
+            let searchParam = { _id: username };
+            dbo.collection("playerdatacollection").updateOne(searchParam, { $inc: { gamesplayed: 1, gameswon: incrementwon } });
+            console.log(`updated ${username}'s scores. Won = ${incrementwon}`)
+            resolve(1);
+        });
+    },
+
+    //Logs user in
+    loginUser: async function (username: string, hash: string, playerid: string) {
+        return new Promise(async function (resolve, reject) {
+            let searchParam = { _id: username, hash: hash };
+            await dbo.collection("playerdatacollection").find(searchParam).toArray(function (err, result) {
+                if (err) {
+                    console.log("error reading from db");
+                    resolve(["-2"]);
+                }
+                else if (result.length == 0) {
+                    resolve(["-3"]);
+                }
+                else {
+                    let data = {
+                        gamesplayed: result[0].gamesplayed,
+                        gameswon: result[0].gameswon,
+                        playerid: playerid
+                    }
+                    let values: playervals = {
+                        pinged: true,
+                        gameid: "0",
+                        hasaccount: true,
+                        username: username
+                    }
+                    players.set(playerid, values);
+                    console.log("Logged in player");
+                    resolve(["1", data]);
+                }
+            });
+        });
+    },
+
+    //Writes a new user to mongo
+    signUpUser: async function (username: string, hash: string, playerid: string) {
+        let playerinfo = { _id: username, hash: hash, gamesplayed: 0, gameswon: 0 };
+        return new Promise(async function (resolve, reject) {
+            await dbo.collection("playerdatacollection").insertOne(playerinfo, function (err, result) {
+                if (err) {
+                    console.log("error inserting document");
+                    resolve("-2");
+                }
+                else {
+                    let values: playervals = {
+                        pinged: true,
+                        gameid: "0",
+                        hasaccount: true,
+                        username: username
+                    }
+                    players.set(playerid, values);
+                    console.log("Signed up player");
+                    resolve("1");
+                }
+            });
+        });
+    },
+
+    //Depricates any players/games that haven't pinged in 10s
+    expirePlayers: function () {
+        let keys: string[] = Array.from(players.keys());
+        let expiredPlayersInGames: changeplayerscorevals[] = [];
+        let expiredPlayers: number = 0;
+        for (let i: number = 0; i < keys.length; i++) {
+            if (players.get(keys[i]).pinged == false) {
+                let gameid: string = players.get(keys[i]).gameid;
+                //If dissconnected player was in game, end their game and mark them for score reduction
+                if (gameid != "0" && games.has(gameid)) {
+                    let otherplayerid: string;
+                    console.log(games, gameid, keys[i], players)
+                    if (games.get(gameid).guestid == keys[i])
+                        otherplayerid = games.get(gameid).hostid;
+                    else
+                        otherplayerid = games.get(gameid).guestid;
+                    games.delete(gameid);
+                    let vals: changeplayerscorevals = {
+                        playerid: keys[i],
+                        username: players.get(keys[i]).username,
+                        otherplayerid: otherplayerid,
+                        otherplayerusername: players.get(otherplayerid).username
+                    }
+                    expiredPlayersInGames.push(vals);
+                }
+                expiredPlayers++;
+                players.delete(keys[i]);
+                for (let j: number = 0; j < playerqueue.length; j++) {
+                    if (playerqueue[j][0] == keys[i]) {
+                        playerqueue.splice(j, 1);
+                        break;
+                    }
+                }
+            }
+            else {
+                players.get(keys[i]).pinged = false;
+            }
+        }
+        if (expiredPlayers > 0)
+            console.log(`Expired ${expiredPlayers} players`)
+        return expiredPlayersInGames;
+    },
+
+    //Pings on behalf of a player to note continued connection
+    registerPing: function (playerid: string) {
+        if (!players.has(playerid))
+            return "disconnected";
+        else {
+            players.get(playerid).pinged = true;
+            return "connected";
+        }
+    },
+
+    //adds player to matchmaking queue or returns other player in queue
+    matchmake: function (playerid: string, gameid: string) {
+        if (playerqueue.length > 0) {
+            let otherplayerdata = playerqueue.shift();
+            players.get(playerid).gameid = otherplayerdata[1];
+            return ["1", otherplayerdata[1]];
+        }
+        else {
+            playerqueue.push([playerid, gameid]);
+            return ["0", players.size.toString()];
+        }
+    },
+
+    //removes a player from the matchmaking queue
+    dequeue: function (playerid: string, gameid: string) {
+        games.delete(gameid);
+        for (let i = 0; i < playerqueue.length; i++) {
+            if (playerqueue[i][0] == playerid) {
+                playerqueue.splice(i, 1);
+                return "removed";
+            }
+        }
+        return "failed to remove";
+    },
 
     //Returns unique gameid
     generateGameID: function (playerid: string) {
@@ -55,8 +239,10 @@ module.exports = {
                 return -1
         }
         let values: playervals = {
-            lastused: new Date().toLocaleString(),
-            gameid: "0"
+            pinged: true,
+            gameid: "0",
+            hasaccount: false,
+            username: ""
         }
         players.set(id.toString(), values);
         return id.toString();
@@ -93,8 +279,7 @@ module.exports = {
                 hostid: playerid,
                 guestid: "0",
                 hostturn: false,
-                winner: "0",
-                lastused: Date.now().toLocaleString()
+                winner: "0"
             }
             games.set(gameid, values)
             return "new game created"
@@ -171,29 +356,18 @@ module.exports = {
         return [games, players]
     },
 
-    //****** HELPER FUNCTIONS ******
-
-    //Changes turn or ends game
-    modifyBoardState: function (gameid: string, playerid: string, winner: boolean) {
-        //Flag game as over if playerid is passed in
-        if (playerid != "0") {
-            //Set winner to playerid passed in because they won
-            if (winner)
-                games.get(gameid).winner = playerid;
-            //Set winner to other player, because player passed in forefit
-            else {
-                if (games.get(gameid).hostid == playerid)
-                    games.get(gameid).winner = games.get(gameid).guestid
-                else
-                    games.get(gameid).winner = games.get(gameid).hostid
-            }
-            return
-        }
-        //Else, rotate hostturn bool to enable turn change
+    //Changes turn
+    changeTurn: function (gameid: string) {
+        //Rotate hostturn bool to enable turn change
         if (games.get(gameid).hostturn == true)
             games.get(gameid).hostturn = false;
         else
             games.get(gameid).hostturn = true;
+    },
+
+    //Ends game
+    endGame: function (gameid: string, winningplayerid: string) {
+        games.get(gameid).winner = winningplayerid;
     },
 
     //Returns location of highest played piece 
@@ -207,10 +381,6 @@ module.exports = {
     //Takes a game out of memory. Gone. Forever.
     deleteGame: function (gameid: string) {
         games.delete(gameid);
-        // let hostid: string = games.get(gameid).hostid;
-        // let guestid: string = games.get(gameid).guestid;
-        // players.delete(hostid);
-        // players.delete(guestid);
     },
 
     //Given a board and the most recent piece played, checks if a win exists around that piece.
@@ -284,32 +454,3 @@ module.exports = {
         return false
     }
 }
-
-//Below code can be used to implement matchmaking. For now, leave commented
-
-// class Queue {
-//     items: string[];
-//     constructor(...params: any[]) {
-//         // console.log(params);
-//         this.items = [...params];
-//     }
-//     enqueue(item: any) {
-//         this.items.push(item);
-//     }
-//     dequeue() {
-//         return this.items.shift();
-//     }
-//     len() {
-//         return this.items.length;
-//     }
-// }
-// var playerqueue: Queue = new Queue();
-// queue: function (playerid: string) {
-//     playerqueue.enqueue(playerid);
-//     if (playerqueue.len() > 1){
-//         let player1:string = playerqueue.dequeue();
-//         let player2:string = playerqueue.dequeue();
-
-//     }
-//     return "meep"
-// },

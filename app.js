@@ -141,7 +141,7 @@ app.get('/debug', function (req, res) {
 //Allows simple get request to check if API is alive. Not essential for operation
 app.get('/healthcheck', function (req, res) {
     res.status(200).json([{
-            data: 'Still Alive'
+            data: 'Still Alive. V2'
         }]);
 });
 //Submits request for matchmaking

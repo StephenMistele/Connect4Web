@@ -113,7 +113,7 @@ app.get('/debug', (req, res) => {
 //Allows simple get request to check if API is alive. Not essential for operation
 app.get('/healthcheck', (req, res) => {
   res.status(200).json([{
-    data: 'Still Alive'
+    data: 'Still Alive. V2'
   }])
 })
 

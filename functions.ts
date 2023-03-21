@@ -38,7 +38,7 @@ const uri: string = `mongodb+srv://serveraccess:${mongoPassword}@connect4instanc
 var dbo;
 MongoClient.connect(uri, async function (err, db) {
     if (err) {
-        console.log("error connecting to db");
+        console.log("error connecting to db", err);
     }
     dbo = db.db("playerdatadb");
 });
